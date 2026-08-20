@@ -30,6 +30,7 @@ namespace MusicBeePlugin
             Dock = DockStyle.Fill; Padding = new Padding(12); AutoScroll = true;
 
             syncedOnly.Text = strings.SyncedOnly;
+            syncedOnly.Checked = settings.SyncedLyricsOnly;
             existingLyricsSkipModeLabel.Text = strings.LyricsCondition;
             existingLyricsSkipMode.Items.AddRange(strings.LyricsConditions);
             existingLyricsSkipMode.SelectedIndex = (int)settings.ExistingLyricsSkipMode;
