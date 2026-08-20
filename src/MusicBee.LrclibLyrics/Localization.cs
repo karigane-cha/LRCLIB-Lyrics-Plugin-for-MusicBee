@@ -67,6 +67,8 @@ namespace MusicBeePlugin
         public string[] Languages => japanese ? new[] { "自動", "英語", "日本語" } : new[] { "Automatic", "English", "Japanese" };
         public string Timeout => japanese ? "通信タイムアウト（秒）" : "Request timeout (seconds)";
         public string Save => japanese ? "保存" : "Save";
+        public string ResetDefaults => japanese ? "デフォルトに戻す" : "Reset to defaults";
+        public string ResetConfirmation => japanese ? "すべての設定をデフォルトに戻しますか？" : "Reset all settings to their defaults?";
         public string Saved => japanese ? "保存しました" : "Saved";
         public string CandidateDialogTitle => japanese ? "LRCLIB Lyrics - 歌詞候補の選択" : "LRCLIB Lyrics - Select lyrics";
         public string CandidateTitle => japanese ? "曲名" : "Title";

@@ -19,6 +19,7 @@ namespace MusicBeePlugin
         private readonly ComboBox language = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
         private readonly NumericUpDown timeout = new NumericUpDown { Minimum = 3, Maximum = 60, Width = 55 };
         private readonly Button save = new Button { AutoSize = true };
+        private readonly Button reset = new Button { AutoSize = true };
         private readonly PluginSettings settings;
         private readonly Action<PluginSettings> saveAction;
         private readonly LocalizedStrings strings;
@@ -48,6 +49,7 @@ namespace MusicBeePlugin
             language.Items.AddRange(strings.Languages);
             language.SelectedIndex = (int)settings.LanguageMode;
             save.Text = strings.Save;
+            reset.Text = strings.ResetDefaults;
             timeout.Value = settings.RequestTimeoutSeconds;
 
             var description = new Label
@@ -65,8 +67,12 @@ namespace MusicBeePlugin
             panel.Controls.Add(popupThemeLabel); panel.Controls.Add(popupTheme);
             panel.Controls.Add(languageLabel); panel.Controls.Add(language); panel.Controls.Add(Spacer());
             var timeoutRow = new FlowLayoutPanel { AutoSize = true }; timeoutRow.Controls.Add(timeoutLabel); timeoutRow.Controls.Add(timeout); panel.Controls.Add(timeoutRow);
-            panel.Controls.Add(Spacer()); panel.Controls.Add(save); Controls.Add(panel);
+            panel.Controls.Add(Spacer());
+            var buttonRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+            buttonRow.Controls.Add(save); buttonRow.Controls.Add(reset);
+            panel.Controls.Add(buttonRow); Controls.Add(panel);
             save.Click += Save;
+            reset.Click += Reset;
         }
 
         private void Save(object sender, EventArgs e)
@@ -81,6 +87,23 @@ namespace MusicBeePlugin
             settings.RequestTimeoutSeconds = Decimal.ToInt32(timeout.Value);
             saveAction(settings); save.Text = PluginLocalization.Get(settings.LanguageMode).Saved;
         }
+        private void Reset(object sender, EventArgs e)
+        {
+            var result = MessageBox.Show(this, strings.ResetConfirmation, strings.ResetDefaults, MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (result != DialogResult.Yes) return;
+
+            var defaults = new PluginSettings();
+            syncedOnly.Checked = defaults.SyncedLyricsOnly;
+            existingLyricsSkipMode.SelectedIndex = (int)defaults.ExistingLyricsSkipMode;
+            embeddedLyricsHandling.SelectedIndex = (int)defaults.EmbeddedLyricsHandling;
+            showCandidatePicker.Checked = defaults.ShowCandidatePickerWhenMultiple;
+            overwrite.Checked = defaults.OverwriteExistingLrcFile;
+            popupTheme.SelectedIndex = (int)defaults.PopupTheme;
+            language.SelectedIndex = (int)defaults.LanguageMode;
+            timeout.Value = defaults.RequestTimeoutSeconds;
+            save.Text = strings.Save;
+        }
+
         private static Control Spacer() { return new Label { Height = 5, AutoSize = false }; }
     }
 }
