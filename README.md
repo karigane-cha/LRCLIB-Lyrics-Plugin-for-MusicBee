@@ -48,7 +48,7 @@ MusicBee は 64-bit Windows 上でも 32-bit プロセスとして動作する�
 
 ## リリース作成
 
-GitHub Actions の Build artifact は `mb_LrclibLyrics-v<バージョン>-<短縮コミットID>.zip` という名前で作成します。タグ `v*` の push では、`mb_LrclibLyrics-v<バージョン>.zip` を GitHub Release に添付します。
+GitHub Actions の Build artifact は `mb_LrclibLyrics-v<バージョン>-<短縮コミット ID>.zip` という名前で作成します。タグ `v*` の push では、`mb_LrclibLyrics-v<バージョン>.zip` を GitHub Release に添付します。
 
 ## 今後追加を検討している機能
 
