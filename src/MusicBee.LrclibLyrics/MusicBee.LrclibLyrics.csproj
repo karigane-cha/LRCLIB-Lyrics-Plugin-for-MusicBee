@@ -1,0 +1,37 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{68F4A00C-7D05-4AD4-9FE3-94F31D047B6C}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>MusicBeePlugin</RootNamespace>
+    <AssemblyName>MusicBee.LrclibLyrics</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <LangVersion>7.3</LangVersion>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" /><Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" /><Reference Include="System.Web.Extensions" /><Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\MusicBeeInterface.cs"><Link>MusicBeeInterface.cs</Link></Compile>
+    <Compile Include="Plugin.cs" /><Compile Include="LrclibClient.cs" /><Compile Include="PluginSettings.cs" />
+    <Compile Include="SettingsControl.cs" /><Compile Include="CandidatePickerDialog.cs" /><Compile Include="Localization.cs" /><Compile Include="PluginConfigurationControl.cs" /><Compile Include="AboutDialog.cs" /><Compile Include="SettingsDialog.cs" /><Compile Include="ThemeHelper.cs" /><Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
