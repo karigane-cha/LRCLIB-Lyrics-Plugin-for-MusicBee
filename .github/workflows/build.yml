@@ -1,6 +1,6 @@
 name: Build
 
-on:
+"on":
   push:
     branches: [main]
   pull_request:
@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set build metadata
+        id: metadata
         shell: pwsh
         run: |
           $shortSha = ($env:GITHUB_SHA).Substring(0, 7)
@@ -18,8 +19,8 @@ jobs:
           $versionMatch = [regex]::Match($assemblyInfo, 'AssemblyFileVersion\("(?<version>\d+\.\d+\.\d+)(?:\.\d+)?"\)')
           if (-not $versionMatch.Success) { throw 'AssemblyFileVersion was not found.' }
           $pluginVersion = $versionMatch.Groups['version'].Value
-          "SHORT_SHA=$shortSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "PLUGIN_VERSION=$pluginVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "short_sha=$shortSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "plugin_version=$pluginVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - uses: microsoft/setup-msbuild@v3
       - run: msbuild MusicBee.LrclibLyrics.sln /p:Configuration=Release /p:Platform="Any CPU"
       - name: Prepare MusicBee plugin package
@@ -29,5 +30,5 @@ jobs:
           Copy-Item src/MusicBee.LrclibLyrics/bin/Release/MusicBee.LrclibLyrics.dll package/mb_LrclibLyrics.dll
       - uses: actions/upload-artifact@v6
         with:
-          name: mb_LrclibLyrics-v${{ env.PLUGIN_VERSION }}-${{ env.SHORT_SHA }}
+          name: mb_LrclibLyrics-v${{ steps.metadata.outputs.plugin_version }}-${{ steps.metadata.outputs.short_sha }}
           path: package
