@@ -2,6 +2,8 @@
 
 MusicBee の歌詞プロバイダとして LRCLIB から再生中の曲の歌詞を取得し、同じフォルダーに同名の歌詞ファイルも保存するプラグインです。同期歌詞は `.lrc`、非同期歌詞は `.txt` として保存します。
 
+本プラグインは LRCLIB API を利用する独立したプラグインで、LRCLIB の公式プラグインではありません。
+
 ## 機能
 
 - LRCLIB の `/api/get` を使ったメタデータ検索と `/api/search` によるフォールバック検索
@@ -14,7 +16,7 @@ MusicBee の歌詞プロバイダとして LRCLIB から再生中の曲の歌詞
 - MusicBee のプラグイン画面に「プラグイン情報」と「プラグイン設定」を表示し、設定はポップアップで編集可能
 - プラグイン設定ポップアップのテーマを Windows 設定との同期・ライト・ダークから選択
 - プラグインの表示言語を自動・日本語・英語から選択
-- 同一曲への重複リクエスト抑止、12 秒の通信タイムアウト、MusicBee のログへの結果出力
+- 同一曲への重複リクエスト抑止、LRCLIB API への直列リクエスト、レート制限への対応、既定 12 秒の通信タイムアウト、MusicBee のログへの結果出力
 
 非同期歌詞には同期タイムコードを付与せず、プレーンテキストの `.txt` として保存します。
 
@@ -48,7 +50,7 @@ MusicBee は 64-bit Windows 上でも 32-bit プロセスとして動作する�
 
 ## リリース作成
 
-GitHub Actions の Build artifact は `mb_LrclibLyrics-v<バージョン>-<短縮コミット ID>.zip` という名前で作成します。タグ `v*` の push では、`mb_LrclibLyrics-v<バージョン>.zip` を GitHub Release に添付します。
+GitHub Actions の Build artifact は `mb_LrclibLyrics-v<バージョン>-<短縮コミット ID>.zip` という名前で作成します。Release workflow は `v*` タグの push で起動し、タグは `vX.Y.Z` 形式である必要があります。ビルドした DLL の Assembly version と File version がタグのバージョンに一致しない場合、workflow は失敗し、GitHub Release は作成されません。一致した場合は `mb_LrclibLyrics-vX.Y.Z.zip` を作成して GitHub Release に添付します。ZIP には `mb_LrclibLyrics.dll` と `LICENSE` のみを含みます。
 
 ## 今後追加を検討している機能
 

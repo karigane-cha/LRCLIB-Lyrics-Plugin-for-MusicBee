@@ -25,6 +25,7 @@ namespace MusicBeePlugin
             settingsPath = Path.Combine(string.IsNullOrWhiteSpace(storage) ? AppDomain.CurrentDomain.BaseDirectory : storage, "LrclibLyrics.settings.json");
             settings = PluginSettings.Load(settingsPath);
             var strings = PluginLocalization.Get(settings.LanguageMode);
+            var version = PluginVersionInfo.AssemblyVersion;
             return new PluginInfo
             {
                 PluginInfoVersion = PluginInfoVersion,
@@ -33,9 +34,9 @@ namespace MusicBeePlugin
                 Description = strings.PluginDescription,
                 Author = "karigane-cha",
                 TargetApplication = "",
-                VersionMajor = 0,
-                VersionMinor = 1,
-                Revision = 0,
+                VersionMajor = checked((short)version.Major),
+                VersionMinor = checked((short)version.Minor),
+                Revision = checked((short)version.Build),
                 MinInterfaceVersion = MinInterfaceVersion,
                 MinApiRevision = MinApiRevision,
                 ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents,

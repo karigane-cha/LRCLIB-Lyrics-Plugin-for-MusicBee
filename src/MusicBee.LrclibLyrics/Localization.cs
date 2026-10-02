@@ -26,15 +26,22 @@ namespace MusicBeePlugin
         public string PluginInfoButton => japanese ? "プラグイン情報" : "Plugin info";
         public string PluginSettingsButton => japanese ? "プラグイン設定" : "Plugin settings";
         public string AboutTitle => japanese ? "情報" : "Information";
-        public string AboutDescription => japanese
-            ? "LRCLIB Lyrics (0.1.0)\r\n"
-                + "karigane-cha\r\n"
-                + "LRCLIB から歌詞を取得し、曲と同じフォルダーに\r\n"
-                + ".lrc または .txt として保存する MusicBee プラグインです。"
-            : "LRCLIB Lyrics (0.1.0)\r\n"
-                + "karigane-cha\r\n"
-                + "This is a MusicBee plugin that retrieves lyrics from LRCLIB\r\n"
-                + "and saves them in the same folder as the song.";
+        public string AboutDescription
+        {
+            get
+            {
+                var version = PluginVersionInfo.UserAgentVersion;
+                return japanese
+                    ? "LRCLIB Lyrics (" + version + ")\r\n"
+                        + "karigane-cha\r\n"
+                        + "LRCLIB から歌詞を取得し、曲と同じフォルダーに\r\n"
+                        + ".lrc または .txt として保存する MusicBee プラグインです。"
+                    : "LRCLIB Lyrics (" + version + ")\r\n"
+                        + "karigane-cha\r\n"
+                        + "This is a MusicBee plugin that retrieves lyrics from LRCLIB\r\n"
+                        + "and saves them in the same folder as the song.";
+            }
+        }
         public string Ok => "OK";
         public string SettingsTitle => japanese ? "LRCLIB Lyrics - プラグイン設定" : "LRCLIB Lyrics - Plugin settings";
         public string Description => japanese

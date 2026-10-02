@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,8 +13,15 @@ namespace MusicBeePlugin
     internal sealed class LrclibClient
     {
         private const string ApiBase = "https://lrclib.net/api";
+        private const string ProjectUrl = "https://github.com/karigane-cha/LRCLIB-Lyrics-Plugin-for-MusicBee";
+        private const int TooManyRequestsStatusCode = 429;
+        private const int MaxRateLimitRetries = 2;
+        private static readonly TimeSpan DefaultRetryAfter = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan MinimumRequestInterval = TimeSpan.FromMilliseconds(250);
         private readonly HttpClient client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         private readonly JavaScriptSerializer serializer = new JavaScriptSerializer();
+        private readonly SemaphoreSlim requestSemaphore = new SemaphoreSlim(1, 1);
+        private DateTimeOffset nextRequestAllowedAt = DateTimeOffset.MinValue;
 
         public async Task<LyricsSearchResponse> SearchAsync(TrackMetadata track, bool syncedOnly, int timeoutSeconds)
         {
@@ -37,15 +45,54 @@ namespace MusicBeePlugin
 
         private async Task<string> GetJsonAsync(string relativeUrl, CancellationToken token)
         {
-            using (var request = new HttpRequestMessage(HttpMethod.Get, ApiBase + relativeUrl))
+            await requestSemaphore.WaitAsync(token).ConfigureAwait(false);
+            try
             {
-                request.Headers.UserAgent.ParseAdd("MusicBee-LrclibLyrics/0.1 (+https://github.com/your-account/MusicBee-Lyrics-Plugin)");
-                using (var response = await client.SendAsync(request, token).ConfigureAwait(false))
+                for (var retry = 0; ; retry++)
                 {
-                    if (!response.IsSuccessStatusCode) return null;
-                    return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var wait = nextRequestAllowedAt - DateTimeOffset.UtcNow;
+                    if (wait > TimeSpan.Zero)
+                        await Task.Delay(wait, token).ConfigureAwait(false);
+
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, ApiBase + relativeUrl))
+                    {
+                        request.Headers.UserAgent.ParseAdd("MusicBee-LrclibLyrics/" + PluginVersionInfo.UserAgentVersion + " (+" + ProjectUrl + ")");
+                        using (var response = await client.SendAsync(request, token).ConfigureAwait(false))
+                        {
+                            nextRequestAllowedAt = DateTimeOffset.UtcNow.Add(MinimumRequestInterval);
+                            if ((int)response.StatusCode == TooManyRequestsStatusCode)
+                            {
+                                var retryAfter = GetRetryAfter(response);
+                                if (retryAfter > MinimumRequestInterval)
+                                    nextRequestAllowedAt = DateTimeOffset.UtcNow.Add(retryAfter);
+
+                                if (retry >= MaxRateLimitRetries) return null;
+                                continue;
+                            }
+
+                            if (!response.IsSuccessStatusCode) return null;
+                            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        }
+                    }
                 }
             }
+            finally
+            {
+                requestSemaphore.Release();
+            }
+        }
+
+        private static TimeSpan GetRetryAfter(HttpResponseMessage response)
+        {
+            var retryAfter = response.Headers.RetryAfter;
+            if (retryAfter == null) return DefaultRetryAfter;
+            if (retryAfter.Delta.HasValue) return retryAfter.Delta.Value < TimeSpan.Zero ? TimeSpan.Zero : retryAfter.Delta.Value;
+            if (retryAfter.Date.HasValue)
+            {
+                var delay = retryAfter.Date.Value - DateTimeOffset.UtcNow;
+                return delay < TimeSpan.Zero ? TimeSpan.Zero : delay;
+            }
+            return DefaultRetryAfter;
         }
 
         private async Task<Dictionary<string, object>> GetObjectAsync(string relativeUrl, CancellationToken token)

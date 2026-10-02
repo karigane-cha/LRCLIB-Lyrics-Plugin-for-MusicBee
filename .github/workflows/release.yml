@@ -12,16 +12,50 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Validate release tag
+        id: validate-tag
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw "Release tag '$env:RELEASE_TAG' must use the vX.Y.Z format."
+          }
+          $assetName = "mb_LrclibLyrics-$env:RELEASE_TAG.zip"
+          "version=$($env:RELEASE_TAG.Substring(1))" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "asset_name=$assetName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - uses: microsoft/setup-msbuild@v3
       - run: msbuild MusicBee.LrclibLyrics.sln /p:Configuration=Release /p:Platform="Any CPU"
+      - name: Verify tag and plugin versions
+        shell: pwsh
+        env:
+          TAG_VERSION: ${{ steps.validate-tag.outputs.version }}
+        run: |
+          $pluginDll = 'src/MusicBee.LrclibLyrics/bin/Release/MusicBee.LrclibLyrics.dll'
+          $assemblyVersion = [System.Reflection.AssemblyName]::GetAssemblyName($pluginDll).Version
+          $fileVersionText = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($pluginDll).FileVersion
+          $fileVersion = [Version]::Parse($fileVersionText)
+          if ($assemblyVersion.ToString(4) -ne $fileVersion.ToString(4)) {
+            throw "Assembly version ($assemblyVersion) and file version ($fileVersion) do not match."
+          }
+          if ($assemblyVersion.Revision -ne 0 -or $fileVersion.Revision -ne 0) {
+            throw "Expected a zero fourth version component. Assembly: $assemblyVersion; file: $fileVersion."
+          }
+          $pluginVersion = '{0}.{1}.{2}' -f $assemblyVersion.Major, $assemblyVersion.Minor, $assemblyVersion.Build
+          if ($pluginVersion -cne $env:TAG_VERSION) {
+            throw "Release tag version ($env:TAG_VERSION) does not match plugin version ($pluginVersion)."
+          }
+          Write-Host "Validated tag version $env:TAG_VERSION against assembly and file version $($assemblyVersion.ToString(4))."
       - name: Package
         shell: pwsh
+        env:
+          RELEASE_ASSET: ${{ steps.validate-tag.outputs.asset_name }}
         run: |
           New-Item -ItemType Directory -Path package -Force | Out-Null
           Copy-Item src/MusicBee.LrclibLyrics/bin/Release/MusicBee.LrclibLyrics.dll package/mb_LrclibLyrics.dll
           Copy-Item LICENSE package/LICENSE
-          Compress-Archive -Path package/* -DestinationPath "mb_LrclibLyrics-${{ github.ref_name }}.zip" -Force
-      - uses: softprops/action-gh-release@v2
+          Compress-Archive -Path package/* -DestinationPath $env:RELEASE_ASSET -Force
+      - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: mb_LrclibLyrics-${{ github.ref_name }}.zip
+          files: ${{ steps.validate-tag.outputs.asset_name }}

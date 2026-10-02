@@ -10,19 +10,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: microsoft/setup-msbuild@v3
+      - run: msbuild MusicBee.LrclibLyrics.sln /p:Configuration=Release /p:Platform="Any CPU"
       - name: Set build metadata
         id: metadata
         shell: pwsh
         run: |
+          $pluginDll = 'src/MusicBee.LrclibLyrics/bin/Release/MusicBee.LrclibLyrics.dll'
+          $assemblyVersion = [System.Reflection.AssemblyName]::GetAssemblyName($pluginDll).Version
+          $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($pluginDll).FileVersion
+          if ($assemblyVersion.ToString(4) -ne $fileVersion) { throw "Assembly version ($assemblyVersion) and file version ($fileVersion) do not match." }
+          if ($assemblyVersion.Revision -ne 0) { throw "Expected a zero fourth version component, got $assemblyVersion." }
           $shortSha = ($env:GITHUB_SHA).Substring(0, 7)
-          $assemblyInfo = Get-Content src/MusicBee.LrclibLyrics/Properties/AssemblyInfo.cs -Raw
-          $versionMatch = [regex]::Match($assemblyInfo, 'AssemblyFileVersion\("(?<version>\d+\.\d+\.\d+)(?:\.\d+)?"\)')
-          if (-not $versionMatch.Success) { throw 'AssemblyFileVersion was not found.' }
-          $pluginVersion = $versionMatch.Groups['version'].Value
+          $pluginVersion = $assemblyVersion.ToString(3)
           "short_sha=$shortSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "plugin_version=$pluginVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-      - uses: microsoft/setup-msbuild@v3
-      - run: msbuild MusicBee.LrclibLyrics.sln /p:Configuration=Release /p:Platform="Any CPU"
       - name: Prepare MusicBee plugin package
         shell: pwsh
         run: |

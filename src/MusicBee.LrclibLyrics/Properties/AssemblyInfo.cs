@@ -8,6 +8,5 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCopyright("Copyright © 2026")]
 [assembly: ComVisible(false)]
 [assembly: Guid("bebd8c6c-8da6-4850-a960-a7a78b38e389")]
-[assembly: AssemblyVersion("0.1.0.0")]
-[assembly: AssemblyFileVersion("0.1.0.0")]
-
+[assembly: AssemblyVersion(MusicBeePlugin.PluginVersionInfo.AssemblyVersionString)]
+[assembly: AssemblyFileVersion(MusicBeePlugin.PluginVersionInfo.AssemblyVersionString)]
