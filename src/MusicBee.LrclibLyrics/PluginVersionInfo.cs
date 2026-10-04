@@ -4,7 +4,7 @@ namespace MusicBeePlugin
 {
     internal static class PluginVersionInfo
     {
-        public const string ProductVersion = "0.1.0";
+        public const string ProductVersion = "0.1.1";
         public const string AssemblyVersionString = ProductVersion + ".0";
 
         public static Version AssemblyVersion
