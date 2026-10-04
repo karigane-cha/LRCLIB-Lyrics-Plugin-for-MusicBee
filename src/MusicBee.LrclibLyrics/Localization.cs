@@ -21,7 +21,7 @@ namespace MusicBeePlugin
         }
 
         public string PluginDescription => japanese
-            ? "再生中の曲の歌詞をLRCLIBから取得し、.lrcまたは.txtで保存します。"
+            ? "再生中の曲の歌詞を LRCLIB から取得し、.lrc または .txt で保存します。"
             : "Fetches lyrics from LRCLIB and saves them as .lrc or .txt.";
         public string PluginInfoButton => japanese ? "プラグイン情報" : "Plugin info";
         public string PluginSettingsButton => japanese ? "プラグイン設定" : "Plugin settings";
