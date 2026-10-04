@@ -123,7 +123,10 @@ namespace MusicBeePlugin
         {
             var score = Similar(candidate.Title, track.Title) * 45 + Similar(candidate.Artist, track.Artist) * 35;
             if (track.DurationSeconds > 0 && candidate.DurationSeconds > 0)
-                score += Math.Max(0, 20 - Math.Min(20, Math.Abs(track.DurationSeconds - candidate.DurationSeconds)));
+            {
+                var durationScore = 20.0 - Math.Min(20.0, Math.Abs(track.DurationSeconds - candidate.DurationSeconds));
+                score += (int)Math.Round(durationScore, MidpointRounding.AwayFromZero);
+            }
             return score;
         }
         private static int Similar(string left, string right)
@@ -135,7 +138,26 @@ namespace MusicBeePlugin
         }
         private static string Normalize(string value) => new string((value ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
         private static string Value(IDictionary<string, object> data, string key) => data.ContainsKey(key) && data[key] != null ? Convert.ToString(data[key], CultureInfo.InvariantCulture) : string.Empty;
-        private static int Number(IDictionary<string, object> data, string key) { int value; return int.TryParse(Value(data, key), out value) ? value : 0; }
+        private static double Number(IDictionary<string, object> data, string key)
+        {
+            if (data == null || !data.ContainsKey(key) || data[key] == null) return 0;
+
+            var raw = data[key];
+            double value;
+            var text = raw as string;
+            if (text != null)
+            {
+                if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return 0;
+            }
+            else
+            {
+                if (raw is bool || raw is char) return 0;
+                try { value = Convert.ToDouble(raw, CultureInfo.InvariantCulture); }
+                catch { return 0; }
+            }
+
+            return double.IsNaN(value) || double.IsInfinity(value) ? 0 : value;
+        }
     }
 
     internal sealed class TrackMetadata
@@ -144,9 +166,9 @@ namespace MusicBeePlugin
     }
     internal sealed class LyricsResult
     {
-        public readonly string Title, Artist, Album, Lyrics; public readonly bool IsSynced; public readonly int DurationSeconds;
+        public readonly string Title, Artist, Album, Lyrics; public readonly bool IsSynced; public readonly double DurationSeconds;
         public int MatchScore { get; set; }
-        public LyricsResult(string title, string artist, string album, string lyrics, bool isSynced, int durationSeconds) { Title = title; Artist = artist; Album = album; Lyrics = lyrics; IsSynced = isSynced; DurationSeconds = durationSeconds; }
+        public LyricsResult(string title, string artist, string album, string lyrics, bool isSynced, double durationSeconds) { Title = title; Artist = artist; Album = album; Lyrics = lyrics; IsSynced = isSynced; DurationSeconds = durationSeconds; }
     }
 
     internal sealed class LyricsSearchResponse

@@ -85,6 +85,8 @@ namespace MusicBeePlugin
         public string CandidateType => japanese ? "種類" : "Type";
         public string Synced => japanese ? "同期歌詞" : "Synced";
         public string Unsynced => japanese ? "非同期歌詞" : "Unsynced";
+        public string LyricsPreview => japanese ? "歌詞プレビュー" : "Lyrics preview";
+        public string CandidatePreviewHint => japanese ? "候補を選択すると歌詞を表示します。" : "Select a candidate to preview its lyrics.";
         public string SelectLyrics => japanese ? "この歌詞を保存" : "Save this lyric";
         public string Cancel => japanese ? "キャンセル" : "Cancel";
         public string SelectCandidate(string artist, string title) => japanese
