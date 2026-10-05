@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,13 +14,20 @@ namespace MusicBeePlugin
         private PluginSettings settings;
         private string settingsPath;
         private readonly LrclibClient lrclib = new LrclibClient();
-        private readonly ConcurrentDictionary<string, byte> activeDownloads = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        private readonly object operationsLock = new object();
+        private readonly Dictionary<string, LyricsOperation> activeOperations = new Dictionary<string, LyricsOperation>(StringComparer.OrdinalIgnoreCase);
         private ToolStripItem manualSearchMenuItem;
 
         private enum LyricsRequestMode
         {
             Automatic,
             ManualResearch
+        }
+
+        private enum AutomaticRequestOrigin
+        {
+            TrackChanged,
+            LyricsProvider
         }
 
         private sealed class LyricsRequestOutcome
@@ -34,6 +41,47 @@ namespace MusicBeePlugin
                 Result = result;
                 HasCandidates = hasCandidates;
                 SearchSucceeded = searchSucceeded;
+            }
+        }
+
+        private sealed class LyricsOperation
+        {
+            public readonly LyricsRequestMode RequestMode;
+            public readonly AutomaticRequestOrigin Origin;
+            public readonly TaskCompletionSource<LyricsOperationResult> Completion = new TaskCompletionSource<LyricsOperationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public Task<LyricsOperationResult> Task { get { return Completion.Task; } }
+
+            public LyricsOperation(LyricsRequestMode requestMode, AutomaticRequestOrigin origin)
+            {
+                RequestMode = requestMode;
+                Origin = origin;
+            }
+        }
+
+        private sealed class LyricsOperationResult
+        {
+            public readonly LyricsResult Lyrics;
+            public readonly bool Saved;
+            public readonly bool Canceled;
+            public readonly Exception Error;
+
+            public LyricsOperationResult(LyricsResult lyrics, bool saved, bool canceled, Exception error)
+            {
+                Lyrics = lyrics;
+                Saved = saved;
+                Canceled = canceled;
+                Error = error;
+            }
+
+            public static LyricsOperationResult FromSearch(LyricsRequestOutcome outcome, bool saved, bool canceled)
+            {
+                return new LyricsOperationResult(outcome == null ? null : outcome.Result, saved, canceled, null);
+            }
+
+            public static LyricsOperationResult Failed(Exception error)
+            {
+                return new LyricsOperationResult(null, false, false, error);
             }
         }
 
@@ -96,10 +144,12 @@ namespace MusicBeePlugin
                     DurationSeconds = Math.Max(0, api.NowPlaying_GetDuration() / 1000)
                 };
 
-                var result = GetLyricsForTrackAsync(track, LyricsRequestMode.Automatic).GetAwaiter().GetResult().Result;
-                if (result == null) return null;
-                SaveLyricsFile(file, result);
-                return result.Lyrics;
+                var operation = GetOrStartAutomaticOperation(file, track, false, AutomaticRequestOrigin.LyricsProvider);
+                var result = operation.Task.GetAwaiter().GetResult();
+                return result.Error == null && !result.Canceled && result.Lyrics != null &&
+                    (operation.RequestMode != LyricsRequestMode.ManualResearch || result.Saved)
+                    ? result.Lyrics.Lyrics
+                    : null;
             }
             catch (Exception ex)
             {
@@ -119,25 +169,16 @@ namespace MusicBeePlugin
 
         private async Task DownloadForTrackAsync(string file)
         {
-            if (!IsLocalFile(file) || !activeDownloads.TryAdd(file, 0)) return;
+            if (!IsLocalFile(file)) return;
             try
             {
-                if (!ShouldSearchLocalFile(file)) return;
-                var track = ReadTrack(file);
-                var result = (await GetLyricsForTrackAsync(track, LyricsRequestMode.Automatic).ConfigureAwait(false)).Result;
-                if (result == null)
-                {
-                    Trace(PluginLocalization.Get(settings.LanguageMode).LyricsNotFoundOrCanceled(track.Artist, track.Title));
-                    return;
-                }
-
-                SaveLyricsFile(file, result);
+                var operation = GetOrStartAutomaticOperation(file, null, true, AutomaticRequestOrigin.TrackChanged);
+                if (operation != null) await operation.Task.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 Trace(PluginLocalization.Get(settings.LanguageMode).LyricsFetchFailed(ex.Message));
             }
-            finally { byte ignored; activeDownloads.TryRemove(file, out ignored); }
         }
 
         private bool ShouldSearchLocalFile(string file)
@@ -167,15 +208,175 @@ namespace MusicBeePlugin
             return new LyricsRequestOutcome(result, true, true);
         }
 
-        private void SaveLyricsFile(string file, LyricsResult result)
+        private LyricsOperation GetOrStartAutomaticOperation(string file, TrackMetadata track, bool fromTrackChanged, AutomaticRequestOrigin origin)
         {
-            if (!IsLocalFile(file) || result == null) return;
+            var key = GetOperationKey(file);
+            LyricsOperation operation;
+            var start = false;
+            var joined = false;
+
+            lock (operationsLock)
+            {
+                if (key != null && activeOperations.TryGetValue(key, out operation))
+                {
+                    if (fromTrackChanged && operation.RequestMode == LyricsRequestMode.ManualResearch)
+                        return null;
+                    joined = true;
+                }
+                else
+                {
+                    if (fromTrackChanged && (!IsLocalFile(file) || !ShouldSearchLocalFile(file)))
+                        return null;
+
+                    operation = new LyricsOperation(LyricsRequestMode.Automatic, origin);
+                    if (key != null) activeOperations.Add(key, operation);
+                    start = true;
+                }
+            }
+
+            if (joined)
+            {
+                Trace(operation.RequestMode == LyricsRequestMode.Automatic
+                    ? "Automatic request joined an active operation."
+                    : "Automatic request joined an active manual operation.");
+                return operation;
+            }
+
+            if (start)
+            {
+                Trace("Automatic operation started.");
+                StartOperation(key, operation, async () =>
+                {
+                    var operationTrack = track ?? ReadTrack(file);
+                    var outcome = await GetLyricsForTrackAsync(operationTrack, LyricsRequestMode.Automatic).ConfigureAwait(false);
+                    if (outcome.Result == null)
+                    {
+                        if (origin == AutomaticRequestOrigin.TrackChanged)
+                            Trace(PluginLocalization.Get(settings.LanguageMode).LyricsNotFoundOrCanceled(operationTrack.Artist, operationTrack.Title));
+                        return LyricsOperationResult.FromSearch(outcome, false, outcome.HasCandidates);
+                    }
+
+                    var saved = SaveLyricsFile(file, outcome.Result);
+                    return LyricsOperationResult.FromSearch(outcome, saved, false);
+                });
+            }
+
+            return operation;
+        }
+
+        private LyricsOperation TryStartManualOperation(string file)
+        {
+            var key = GetOperationKey(file);
+            if (key == null) return null;
+
+            LyricsOperation operation;
+            lock (operationsLock)
+            {
+                if (activeOperations.ContainsKey(key)) return null;
+                operation = new LyricsOperation(LyricsRequestMode.ManualResearch, AutomaticRequestOrigin.LyricsProvider);
+                activeOperations.Add(key, operation);
+            }
+
+            Trace("Manual research operation started.");
+            StartOperation(key, operation, () => RunManualOperationAsync(file));
+            return operation;
+        }
+
+        private void StartOperation(string key, LyricsOperation operation, Func<Task<LyricsOperationResult>> work)
+        {
+            _ = CompleteOperationAsync(key, operation, work);
+        }
+
+        private async Task CompleteOperationAsync(string key, LyricsOperation operation, Func<Task<LyricsOperationResult>> work)
+        {
+            var result = new LyricsOperationResult(null, false, false, null);
+            try
+            {
+                result = await work().ConfigureAwait(false);
+                if (result == null) result = new LyricsOperationResult(null, false, false, null);
+            }
+            catch (Exception ex)
+            {
+                result = LyricsOperationResult.Failed(ex);
+                var strings = PluginLocalization.Get(settings.LanguageMode);
+                var errorMessage = operation.RequestMode == LyricsRequestMode.ManualResearch
+                    ? strings.ManualSearchFailed(ex.Message)
+                    : operation.Origin == AutomaticRequestOrigin.TrackChanged
+                        ? strings.LyricsFetchFailed(ex.Message)
+                        : strings.RetrieveRequestFailed(ex.Message);
+                Trace(errorMessage);
+            }
+            finally
+            {
+                if (key != null)
+                {
+                    lock (operationsLock)
+                    {
+                        LyricsOperation current;
+                        if (activeOperations.TryGetValue(key, out current) && ReferenceEquals(current, operation))
+                            activeOperations.Remove(key);
+                    }
+                }
+
+                operation.Completion.TrySetResult(result);
+                Trace(operation.RequestMode == LyricsRequestMode.ManualResearch
+                    ? "Manual research operation completed."
+                    : "Automatic operation completed.");
+            }
+        }
+
+        private string GetOperationKey(string file)
+        {
+            if (string.IsNullOrWhiteSpace(file)) return null;
+            try
+            {
+                Uri uri;
+                var isWindowsPath = (file.Length >= 2 && char.IsLetter(file[0]) && file[1] == ':') ||
+                    file.StartsWith("\\\\", StringComparison.Ordinal) || file.StartsWith("//", StringComparison.Ordinal);
+                if (!isWindowsPath && Uri.TryCreate(file, UriKind.Absolute, out uri)) return null;
+                return Path.GetFullPath(file);
+            }
+            catch { return null; }
+        }
+
+        private async Task<LyricsOperationResult> RunManualOperationAsync(string file)
+        {
+            var strings = PluginLocalization.Get(settings.LanguageMode);
+            var track = ReadTrack(file);
+            if (string.IsNullOrWhiteSpace(track.Title) || string.IsNullOrWhiteSpace(track.Artist))
+            {
+                Trace(strings.SearchTagsMissing);
+                await PluginMessageDialog.ShowInformationAsync(strings.SearchTagsMissing, strings.MessageTitle, strings.Ok, settings.PopupTheme).ConfigureAwait(false);
+                return new LyricsOperationResult(null, false, false, null);
+            }
+
+            var outcome = await GetLyricsForTrackAsync(track, LyricsRequestMode.ManualResearch).ConfigureAwait(false);
+            if (!outcome.HasCandidates)
+            {
+                if (!outcome.SearchSucceeded)
+                {
+                    Trace(strings.LrclibSearchUnavailable);
+                    return LyricsOperationResult.FromSearch(outcome, false, false);
+                }
+                Trace(strings.NoLyricsFound);
+                await PluginMessageDialog.ShowInformationAsync(strings.NoLyricsFound, strings.MessageTitle, strings.Ok, settings.PopupTheme).ConfigureAwait(false);
+                return LyricsOperationResult.FromSearch(outcome, false, false);
+            }
+            if (outcome.Result == null) return LyricsOperationResult.FromSearch(outcome, false, true);
+
+            var saved = await SaveManualLyricsFileAsync(file, outcome.Result).ConfigureAwait(false);
+            return LyricsOperationResult.FromSearch(outcome, saved, false);
+        }
+
+        private bool SaveLyricsFile(string file, LyricsResult result)
+        {
+            if (!IsLocalFile(file) || result == null) return false;
 
             var outputPath = result.IsSynced ? Path.ChangeExtension(file, ".lrc") : Path.ChangeExtension(file, ".txt");
             if (File.Exists(outputPath) && !settings.OverwriteExistingLrcFile)
             {
                 Trace(PluginLocalization.Get(settings.LanguageMode).ExistingFileSkipped(outputPath));
-                return;
+                return false;
             }
 
             File.WriteAllText(outputPath, result.Lyrics, new UTF8Encoding(false));
@@ -183,6 +384,7 @@ namespace MusicBeePlugin
                 OverwriteEmbeddedLyrics(file, result.Lyrics);
             Trace(PluginLocalization.Get(settings.LanguageMode).LyricsSaved(outputPath));
             NotifyLyricsDownloaded();
+            return true;
         }
 
         private bool ShouldSkipTrackWithLocalLyrics(string lrcPath, string textPath)
@@ -242,52 +444,20 @@ namespace MusicBeePlugin
                 return;
             }
 
-            if (!activeDownloads.TryAdd(file, 0))
+            var operation = TryStartManualOperation(file);
+            if (operation == null)
             {
+                Trace("Manual research operation rejected because another operation is active.");
                 await PluginMessageDialog.ShowInformationAsync(strings.ManualSearchAlreadyRunning, strings.MessageTitle, strings.Ok, settings.PopupTheme).ConfigureAwait(false);
                 return;
             }
 
-            try
-            {
-                var track = ReadTrack(file);
-                if (string.IsNullOrWhiteSpace(track.Title) || string.IsNullOrWhiteSpace(track.Artist))
-                {
-                    Trace(strings.SearchTagsMissing);
-                    await PluginMessageDialog.ShowInformationAsync(strings.SearchTagsMissing, strings.MessageTitle, strings.Ok, settings.PopupTheme).ConfigureAwait(false);
-                    return;
-                }
-
-                var outcome = await GetLyricsForTrackAsync(track, LyricsRequestMode.ManualResearch).ConfigureAwait(false);
-                if (!outcome.HasCandidates)
-                {
-                    if (!outcome.SearchSucceeded)
-                    {
-                        Trace(strings.LrclibSearchUnavailable);
-                        return;
-                    }
-                    Trace(strings.NoLyricsFound);
-                    await PluginMessageDialog.ShowInformationAsync(strings.NoLyricsFound, strings.MessageTitle, strings.Ok, settings.PopupTheme).ConfigureAwait(false);
-                    return;
-                }
-                if (outcome.Result == null) return;
-
-                await SaveManualLyricsFileAsync(file, outcome.Result).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Trace(strings.ManualSearchFailed(ex.Message));
-            }
-            finally
-            {
-                byte ignored;
-                activeDownloads.TryRemove(file, out ignored);
-            }
+            await operation.Task.ConfigureAwait(false);
         }
 
-        private async Task SaveManualLyricsFileAsync(string file, LyricsResult result)
+        private async Task<bool> SaveManualLyricsFileAsync(string file, LyricsResult result)
         {
-            if (!IsLocalFile(file) || result == null) return;
+            if (!IsLocalFile(file) || result == null) return false;
 
             var strings = PluginLocalization.Get(settings.LanguageMode);
             var outputPath = result.IsSynced ? Path.ChangeExtension(file, ".lrc") : Path.ChangeExtension(file, ".txt");
@@ -300,7 +470,7 @@ namespace MusicBeePlugin
                     strings.ReplaceExistingFile,
                     strings.Cancel,
                     settings.PopupTheme).ConfigureAwait(false);
-                if (!replace) return;
+                if (!replace) return false;
             }
 
             WriteLyricsFileSafely(outputPath, result.Lyrics, outputAlreadyExists);
@@ -311,6 +481,7 @@ namespace MusicBeePlugin
 
             Trace(strings.LyricsSaved(outputPath));
             NotifyLyricsDownloaded();
+            return true;
         }
 
         private static void WriteLyricsFileSafely(string outputPath, string lyrics, bool replaceExisting)
