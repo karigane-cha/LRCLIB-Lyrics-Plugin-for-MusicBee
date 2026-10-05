@@ -26,6 +26,13 @@ namespace MusicBeePlugin
         Dark = 2
     }
 
+    public enum CandidateDialogMode
+    {
+        Never = 0,
+        MultipleOnly = 1,
+        Always = 2
+    }
+
     public sealed class PluginSettings
     {
         private const int CurrentLanguageModeVersion = 2;
@@ -33,7 +40,7 @@ namespace MusicBeePlugin
         public bool SyncedLyricsOnly { get; set; } = true;
         public ExistingLyricsSkipMode ExistingLyricsSkipMode { get; set; } = ExistingLyricsSkipMode.LrcOrTextOrEmbeddedLyrics;
         public EmbeddedLyricsHandling EmbeddedLyricsHandling { get; set; } = EmbeddedLyricsHandling.Ignore;
-        public bool ShowCandidatePickerWhenMultiple { get; set; } = true;
+        public CandidateDialogMode CandidateDialogMode { get; set; } = CandidateDialogMode.MultipleOnly;
         public bool OverwriteExistingLrcFile { get; set; }
         public PopupTheme PopupTheme { get; set; } = PopupTheme.Windows;
         public PluginLanguageMode LanguageMode { get; set; } = PluginLanguageMode.Automatic;
@@ -47,9 +54,29 @@ namespace MusicBeePlugin
                 if (!File.Exists(path)) return new PluginSettings();
                 var json = File.ReadAllText(path);
                 var serializer = new JavaScriptSerializer();
-                var value = serializer.Deserialize<PluginSettings>(json);
-                if (value == null) return new PluginSettings();
                 var savedValues = serializer.Deserialize<Dictionary<string, object>>(json);
+                if (savedValues == null) return new PluginSettings();
+
+                var hasCandidateDialogMode = savedValues.ContainsKey("CandidateDialogMode");
+                CandidateDialogMode candidateDialogMode = CandidateDialogMode.MultipleOnly;
+                if (hasCandidateDialogMode && !TryReadCandidateDialogMode(savedValues["CandidateDialogMode"], out candidateDialogMode))
+                    savedValues.Remove("CandidateDialogMode");
+
+                // Deserialize a sanitized dictionary so one invalid enum value does not discard
+                // otherwise valid settings.
+                var value = serializer.Deserialize<PluginSettings>(serializer.Serialize(savedValues));
+                if (value == null) return new PluginSettings();
+                if (hasCandidateDialogMode)
+                {
+                    value.CandidateDialogMode = candidateDialogMode;
+                }
+                else if (savedValues.ContainsKey("ShowCandidatePickerWhenMultiple"))
+                {
+                    bool showWhenMultiple;
+                    if (TryReadLegacyBoolean(savedValues, "ShowCandidatePickerWhenMultiple", out showWhenMultiple))
+                        value.CandidateDialogMode = showWhenMultiple ? CandidateDialogMode.MultipleOnly : CandidateDialogMode.Never;
+                }
+
                 if (!savedValues.ContainsKey("EmbeddedLyricsHandling"))
                 {
                     value.EmbeddedLyricsHandling = LegacyBoolean(savedValues, "RemoveEmbeddedLyricsBeforeSearch")
@@ -62,6 +89,8 @@ namespace MusicBeePlugin
                     value.EmbeddedLyricsHandling = EmbeddedLyricsHandling.Ignore;
                 if (!Enum.IsDefined(typeof(PopupTheme), value.PopupTheme))
                     value.PopupTheme = PopupTheme.Windows;
+                if (!Enum.IsDefined(typeof(CandidateDialogMode), value.CandidateDialogMode))
+                    value.CandidateDialogMode = CandidateDialogMode.MultipleOnly;
 
                 if (!savedValues.ContainsKey("LanguageMode"))
                 {
@@ -93,7 +122,41 @@ namespace MusicBeePlugin
 
         private static bool LegacyBoolean(IDictionary<string, object> values, string key)
         {
-            return values.ContainsKey(key) && values[key] != null && Convert.ToBoolean(values[key]);
+            try { return values.ContainsKey(key) && values[key] != null && Convert.ToBoolean(values[key]); }
+            catch { return false; }
+        }
+
+        private static bool TryReadLegacyBoolean(IDictionary<string, object> values, string key, out bool result)
+        {
+            result = false;
+            if (!values.ContainsKey(key) || values[key] == null) return false;
+            try
+            {
+                result = Convert.ToBoolean(values[key]);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryReadCandidateDialogMode(object value, out CandidateDialogMode mode)
+        {
+            mode = CandidateDialogMode.MultipleOnly;
+            if (value == null || value is bool || value is char) return false;
+
+            try
+            {
+                var numericValue = Convert.ToInt32(value);
+                if (!Enum.IsDefined(typeof(CandidateDialogMode), numericValue)) return false;
+                mode = (CandidateDialogMode)numericValue;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static PluginLanguageMode MigrateLegacyLanguageMode(object value)

@@ -31,7 +31,7 @@
   <ItemGroup>
     <Compile Include="..\..\MusicBeeInterface.cs"><Link>MusicBeeInterface.cs</Link></Compile>
     <Compile Include="Plugin.cs" /><Compile Include="LrclibClient.cs" /><Compile Include="PluginVersionInfo.cs" /><Compile Include="PluginSettings.cs" />
-    <Compile Include="SettingsControl.cs" /><Compile Include="CandidatePickerDialog.cs" /><Compile Include="Localization.cs" /><Compile Include="PluginConfigurationControl.cs" /><Compile Include="AboutDialog.cs" /><Compile Include="SettingsDialog.cs" /><Compile Include="ThemeHelper.cs" /><Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SettingsControl.cs" /><Compile Include="CandidatePickerDialog.cs" /><Compile Include="PluginMessageDialog.cs" /><Compile Include="Localization.cs" /><Compile Include="PluginConfigurationControl.cs" /><Compile Include="AboutDialog.cs" /><Compile Include="SettingsDialog.cs" /><Compile Include="ThemeHelper.cs" /><Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

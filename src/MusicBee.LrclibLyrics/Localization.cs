@@ -64,7 +64,10 @@ namespace MusicBeePlugin
             };
         public string EmbeddedLyricsHandling => japanese ? "埋め込み歌詞の処理" : "Embedded lyrics handling";
         public string[] EmbeddedLyricsOptions => japanese ? new[] { "無視", "削除", "上書き" } : new[] { "Ignore", "Delete", "Overwrite" };
-        public string CandidatePicker => japanese ? "候補が複数ある場合は選択画面を表示する" : "Show a selection dialog when multiple candidates are found";
+        public string CandidateDialogMode => japanese ? "歌詞候補の確認画面" : "Lyrics confirmation dialog";
+        public string[] CandidateDialogModes => japanese
+            ? new[] { "表示しない", "複数候補の場合のみ表示", "常に表示" }
+            : new[] { "Never", "Only when multiple candidates are found", "Always" };
         public string Overwrite => japanese ? "既存の歌詞ファイル（.lrc / .txt）を上書きする" : "Overwrite existing lyric files (.lrc / .txt)";
         public string PopupTheme => japanese ? "プラグイン設定ポップアップのテーマ" : "Plugin settings popup theme";
         public string[] PopupThemes => japanese
@@ -77,7 +80,7 @@ namespace MusicBeePlugin
         public string ResetDefaults => japanese ? "デフォルトに戻す" : "Reset to defaults";
         public string ResetConfirmation => japanese ? "すべての設定をデフォルトに戻しますか？" : "Reset all settings to their defaults?";
         public string Saved => japanese ? "保存しました" : "Saved";
-        public string CandidateDialogTitle => japanese ? "LRCLIB Lyrics - 歌詞候補の選択" : "LRCLIB Lyrics - Select lyrics";
+        public string CandidateDialogTitle => japanese ? "LRCLIB Lyrics - 歌詞の確認・選択" : "LRCLIB Lyrics - Review lyrics";
         public string CandidateTitle => japanese ? "曲名" : "Title";
         public string CandidateArtist => japanese ? "アーティスト" : "Artist";
         public string CandidateAlbum => japanese ? "アルバム" : "Album";
@@ -89,9 +92,22 @@ namespace MusicBeePlugin
         public string CandidatePreviewHint => japanese ? "候補を選択すると歌詞を表示します。" : "Select a candidate to preview its lyrics.";
         public string SelectLyrics => japanese ? "この歌詞を保存" : "Save this lyric";
         public string Cancel => japanese ? "キャンセル" : "Cancel";
-        public string SelectCandidate(string artist, string title) => japanese
-            ? "「" + artist + " - " + title + "」の候補を選択してください。"
-            : "Select a lyric for \"" + artist + " - " + title + "\".";
+        public string ReviewCandidates(string artist, string title) => japanese
+            ? "「" + artist + " - " + title + "」の歌詞を確認または選択してください。"
+            : "Review or select lyrics for \"" + artist + " - " + title + "\".";
+        public string ManualSearch => japanese ? "LRCLIB で再検索" : "Search LRCLIB again";
+        public string ManualSearchAlreadyRunning => japanese ? "この曲はすでに検索中です。" : "A search for this track is already in progress.";
+        public string NoCurrentLocalTrack => japanese ? "再生中のローカル曲がありません。" : "There is no local track currently playing.";
+        public string NoLyricsFound => japanese ? "LRCLIB に歌詞が見つかりませんでした。" : "No lyrics were found in LRCLIB.";
+        public string LrclibSearchUnavailable => japanese ? "LRCLIB の検索を完了できませんでした。" : "The LRCLIB search could not be completed.";
+        public string MessageTitle => japanese ? "LRCLIB Lyrics" : "LRCLIB Lyrics";
+        public string ExistingFileReplaceConfirmation => japanese
+            ? "同名の歌詞ファイルが既に存在します。\r\n\r\n選択した歌詞で置き換えますか？"
+            : "A lyric file with the same name already exists.\r\n\r\nReplace it with the selected lyrics?";
+        public string ReplaceExistingFile => japanese ? "置き換える" : "Replace";
+        public string ManualSearchFailed(string message) => japanese
+            ? "LRCLIB の再検索に失敗しました: " + message
+            : "The LRCLIB search failed: " + message;
 
         public string SettingsSaved => japanese ? "LRCLIB Lyrics の設定を保存しました。" : "LRCLIB Lyrics settings saved.";
         public string RetrieveRequestFailed(string message) => japanese
@@ -111,8 +127,8 @@ namespace MusicBeePlugin
             ? "LRCLIB の歌詞取得に失敗しました: " + path
             : "Failed to retrieve lyrics from LRCLIB: " + path;
         public string EmbeddedDeleteFailed(string path) => japanese
-            ? "埋め込み歌詞を削除できなかったため、歌詞の取得を中止しました: " + path
-            : "Lyrics retrieval canceled because embedded lyrics could not be removed: " + path;
+            ? "埋め込み歌詞を削除できませんでした: " + path
+            : "Could not remove embedded lyrics: " + path;
         public string EmbeddedDeleted(string path) => japanese ? "埋め込み歌詞を削除しました: " + path : "Embedded lyrics deleted: " + path;
         public string EmbeddedSaveFailed(string path) => japanese
             ? "取得した歌詞を埋め込み歌詞として保存できませんでした: " + path

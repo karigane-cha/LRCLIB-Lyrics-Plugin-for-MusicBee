@@ -36,7 +36,7 @@ namespace MusicBeePlugin
             var heading = new Label
             {
                 Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(10, 10, 10, 8),
-                Text = strings.SelectCandidate(track.Artist, track.Title)
+                Text = strings.ReviewCandidates(track.Artist, track.Title)
             };
             var split = new SplitContainer
             {
@@ -63,12 +63,18 @@ namespace MusicBeePlugin
             AcceptButton = select; CancelButton = cancel;
             candidates.SelectedIndexChanged += (sender, args) => UpdateSelection();
             select.Click += (sender, args) => SelectCandidate();
+            if (candidates.Items.Count == 1)
+            {
+                candidates.Items[0].Selected = true;
+                candidates.Items[0].Focused = true;
+                UpdateSelection();
+            }
             ThemeHelper.Apply(this, theme);
         }
 
         public static Task<LyricsResult> ShowAsync(TrackMetadata track, IList<LyricsResult> results, PluginLanguageMode language, PopupTheme theme)
         {
-            var completion = new TaskCompletionSource<LyricsResult>();
+            var completion = new TaskCompletionSource<LyricsResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
                 try
@@ -86,14 +92,15 @@ namespace MusicBeePlugin
 
         private void SelectCandidate()
         {
-            if (candidates.SelectedItems.Count != 1) return;
-            SelectedCandidate = (LyricsResult)candidates.SelectedItems[0].Tag;
+            SelectedCandidate = GetSelectedCandidate();
+            if (SelectedCandidate == null) return;
             DialogResult = DialogResult.OK;
         }
 
         private void UpdateSelection()
         {
-            if (candidates.SelectedItems.Count != 1)
+            var selected = GetSelectedCandidate();
+            if (selected == null)
             {
                 select.Enabled = false;
                 preview.Text = strings.CandidatePreviewHint;
@@ -101,7 +108,14 @@ namespace MusicBeePlugin
             }
 
             select.Enabled = true;
-            preview.Text = ((LyricsResult)candidates.SelectedItems[0].Tag).Lyrics ?? string.Empty;
+            preview.Text = selected.Lyrics ?? string.Empty;
+        }
+
+        private LyricsResult GetSelectedCandidate()
+        {
+            if (candidates.SelectedItems.Count == 1)
+                return candidates.SelectedItems[0].Tag as LyricsResult;
+            return candidates.Items.Count == 1 ? candidates.Items[0].Tag as LyricsResult : null;
         }
 
         private static string FormatDuration(double seconds)

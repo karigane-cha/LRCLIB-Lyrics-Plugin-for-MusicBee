@@ -31,19 +31,19 @@ namespace MusicBeePlugin
                 var result = ToResult(direct, syncedOnly);
                 if (result != null) return LyricsSearchResponse.Direct(result);
 
-                var candidates = await GetArrayAsync("/search?q=" + Escape(track.Artist + " " + track.Title), cancellation.Token).ConfigureAwait(false);
-                var list = candidates
+                var search = await GetArrayAsync("/search?q=" + Escape(track.Artist + " " + track.Title), cancellation.Token).ConfigureAwait(false);
+                var list = search.Candidates
                     .Select(x => ToResult(x, syncedOnly))
                     .Where(x => x != null)
                     .Select(x => { x.MatchScore = Score(x, track); return x; })
                     .Where(x => x.MatchScore >= 60)
                     .OrderByDescending(x => x.MatchScore)
                     .ToList();
-                return LyricsSearchResponse.FromCandidates(list);
+                return LyricsSearchResponse.FromCandidates(list, search.Succeeded);
             }
         }
 
-        private async Task<string> GetJsonAsync(string relativeUrl, CancellationToken token)
+        private async Task<JsonResponse> GetJsonAsync(string relativeUrl, CancellationToken token)
         {
             await requestSemaphore.WaitAsync(token).ConfigureAwait(false);
             try
@@ -66,12 +66,12 @@ namespace MusicBeePlugin
                                 if (retryAfter > MinimumRequestInterval)
                                     nextRequestAllowedAt = DateTimeOffset.UtcNow.Add(retryAfter);
 
-                                if (retry >= MaxRateLimitRetries) return null;
+                                if (retry >= MaxRateLimitRetries) return new JsonResponse(false, null);
                                 continue;
                             }
 
-                            if (!response.IsSuccessStatusCode) return null;
-                            return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                            if (!response.IsSuccessStatusCode) return new JsonResponse(false, null);
+                            return new JsonResponse(true, await response.Content.ReadAsStringAsync().ConfigureAwait(false));
                         }
                     }
                 }
@@ -97,14 +97,20 @@ namespace MusicBeePlugin
 
         private async Task<Dictionary<string, object>> GetObjectAsync(string relativeUrl, CancellationToken token)
         {
-            var json = await GetJsonAsync(relativeUrl, token).ConfigureAwait(false);
-            return string.IsNullOrWhiteSpace(json) ? null : serializer.Deserialize<Dictionary<string, object>>(json);
+            var response = await GetJsonAsync(relativeUrl, token).ConfigureAwait(false);
+            return !response.Succeeded || string.IsNullOrWhiteSpace(response.Json)
+                ? null
+                : serializer.Deserialize<Dictionary<string, object>>(response.Json);
         }
 
-        private async Task<IEnumerable<Dictionary<string, object>>> GetArrayAsync(string relativeUrl, CancellationToken token)
+        private async Task<SearchArrayResponse> GetArrayAsync(string relativeUrl, CancellationToken token)
         {
-            var json = await GetJsonAsync(relativeUrl, token).ConfigureAwait(false);
-            return string.IsNullOrWhiteSpace(json) ? Enumerable.Empty<Dictionary<string, object>>() : serializer.Deserialize<List<Dictionary<string, object>>>(json);
+            var response = await GetJsonAsync(relativeUrl, token).ConfigureAwait(false);
+            if (!response.Succeeded || string.IsNullOrWhiteSpace(response.Json))
+                return new SearchArrayResponse(false, Enumerable.Empty<Dictionary<string, object>>());
+
+            var candidates = serializer.Deserialize<List<Dictionary<string, object>>>(response.Json);
+            return new SearchArrayResponse(true, candidates ?? new List<Dictionary<string, object>>());
         }
 
         private static string Escape(string value) { return Uri.EscapeDataString(value ?? string.Empty); }
@@ -158,6 +164,26 @@ namespace MusicBeePlugin
 
             return double.IsNaN(value) || double.IsInfinity(value) ? 0 : value;
         }
+
+        private sealed class JsonResponse
+        {
+            public readonly bool Succeeded;
+            public readonly string Json;
+
+            public JsonResponse(bool succeeded, string json) { Succeeded = succeeded; Json = json; }
+        }
+
+        private sealed class SearchArrayResponse
+        {
+            public readonly bool Succeeded;
+            public readonly IEnumerable<Dictionary<string, object>> Candidates;
+
+            public SearchArrayResponse(bool succeeded, IEnumerable<Dictionary<string, object>> candidates)
+            {
+                Succeeded = succeeded;
+                Candidates = candidates;
+            }
+        }
     }
 
     internal sealed class TrackMetadata
@@ -174,10 +200,16 @@ namespace MusicBeePlugin
     internal sealed class LyricsSearchResponse
     {
         public readonly bool IsDirectMatch;
+        public readonly bool WasSearchSuccessful;
         public readonly IList<LyricsResult> Candidates;
 
-        private LyricsSearchResponse(bool isDirectMatch, IList<LyricsResult> candidates) { IsDirectMatch = isDirectMatch; Candidates = candidates; }
-        public static LyricsSearchResponse Direct(LyricsResult result) { return new LyricsSearchResponse(true, new List<LyricsResult> { result }); }
-        public static LyricsSearchResponse FromCandidates(IList<LyricsResult> results) { return new LyricsSearchResponse(false, results); }
+        private LyricsSearchResponse(bool isDirectMatch, bool wasSearchSuccessful, IList<LyricsResult> candidates)
+        {
+            IsDirectMatch = isDirectMatch;
+            WasSearchSuccessful = wasSearchSuccessful;
+            Candidates = candidates;
+        }
+        public static LyricsSearchResponse Direct(LyricsResult result) { return new LyricsSearchResponse(true, true, new List<LyricsResult> { result }); }
+        public static LyricsSearchResponse FromCandidates(IList<LyricsResult> results, bool wasSearchSuccessful) { return new LyricsSearchResponse(false, wasSearchSuccessful, results); }
     }
 }

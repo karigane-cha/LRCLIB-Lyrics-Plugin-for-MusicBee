@@ -11,7 +11,8 @@ namespace MusicBeePlugin
         private readonly ComboBox existingLyricsSkipMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
         private readonly Label embeddedLyricsHandlingLabel = new Label { AutoSize = true };
         private readonly ComboBox embeddedLyricsHandling = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
-        private readonly CheckBox showCandidatePicker = new CheckBox { AutoSize = true };
+        private readonly Label candidateDialogModeLabel = new Label { AutoSize = true };
+        private readonly ComboBox candidateDialogMode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
         private readonly CheckBox overwrite = new CheckBox { AutoSize = true };
         private readonly Label popupThemeLabel = new Label { AutoSize = true };
         private readonly ComboBox popupTheme = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 380 };
@@ -38,8 +39,9 @@ namespace MusicBeePlugin
             embeddedLyricsHandlingLabel.Text = strings.EmbeddedLyricsHandling;
             embeddedLyricsHandling.Items.AddRange(strings.EmbeddedLyricsOptions);
             embeddedLyricsHandling.SelectedIndex = (int)settings.EmbeddedLyricsHandling;
-            showCandidatePicker.Text = strings.CandidatePicker;
-            showCandidatePicker.Checked = settings.ShowCandidatePickerWhenMultiple;
+            candidateDialogModeLabel.Text = strings.CandidateDialogMode;
+            candidateDialogMode.Items.AddRange(strings.CandidateDialogModes);
+            candidateDialogMode.SelectedIndex = (int)settings.CandidateDialogMode;
             overwrite.Text = strings.Overwrite;
             overwrite.Checked = settings.OverwriteExistingLrcFile;
             popupThemeLabel.Text = strings.PopupTheme;
@@ -63,7 +65,7 @@ namespace MusicBeePlugin
             panel.Controls.Add(description); panel.Controls.Add(Spacer()); panel.Controls.Add(syncedOnly);
             panel.Controls.Add(existingLyricsSkipModeLabel); panel.Controls.Add(existingLyricsSkipMode);
             panel.Controls.Add(embeddedLyricsHandlingLabel); panel.Controls.Add(embeddedLyricsHandling);
-            panel.Controls.Add(showCandidatePicker); panel.Controls.Add(overwrite);
+            panel.Controls.Add(candidateDialogModeLabel); panel.Controls.Add(candidateDialogMode); panel.Controls.Add(overwrite);
             panel.Controls.Add(popupThemeLabel); panel.Controls.Add(popupTheme);
             panel.Controls.Add(languageLabel); panel.Controls.Add(language); panel.Controls.Add(Spacer());
             var timeoutRow = new FlowLayoutPanel { AutoSize = true }; timeoutRow.Controls.Add(timeoutLabel); timeoutRow.Controls.Add(timeout); panel.Controls.Add(timeoutRow);
@@ -80,7 +82,7 @@ namespace MusicBeePlugin
             settings.SyncedLyricsOnly = syncedOnly.Checked;
             settings.ExistingLyricsSkipMode = (ExistingLyricsSkipMode)existingLyricsSkipMode.SelectedIndex;
             settings.EmbeddedLyricsHandling = (EmbeddedLyricsHandling)embeddedLyricsHandling.SelectedIndex;
-            settings.ShowCandidatePickerWhenMultiple = showCandidatePicker.Checked;
+            settings.CandidateDialogMode = (CandidateDialogMode)candidateDialogMode.SelectedIndex;
             settings.OverwriteExistingLrcFile = overwrite.Checked;
             settings.PopupTheme = (PopupTheme)popupTheme.SelectedIndex;
             settings.LanguageMode = (PluginLanguageMode)language.SelectedIndex;
@@ -96,7 +98,7 @@ namespace MusicBeePlugin
             syncedOnly.Checked = defaults.SyncedLyricsOnly;
             existingLyricsSkipMode.SelectedIndex = (int)defaults.ExistingLyricsSkipMode;
             embeddedLyricsHandling.SelectedIndex = (int)defaults.EmbeddedLyricsHandling;
-            showCandidatePicker.Checked = defaults.ShowCandidatePickerWhenMultiple;
+            candidateDialogMode.SelectedIndex = (int)defaults.CandidateDialogMode;
             overwrite.Checked = defaults.OverwriteExistingLrcFile;
             popupTheme.SelectedIndex = (int)defaults.PopupTheme;
             language.SelectedIndex = (int)defaults.LanguageMode;
